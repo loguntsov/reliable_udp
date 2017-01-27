@@ -1,0 +1,7 @@
+_build
+log
+.rebar
+.idea
+*.iml
+erl_crash.dump
+*.pid
