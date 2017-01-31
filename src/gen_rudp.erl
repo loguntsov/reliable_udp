@@ -114,7 +114,7 @@ sync_send_binary(Socket, Binary, Timeout) ->
 send_udp(_Socket, Binary) when size(Binary) > 1024 -> { error, big_packet };
 send_udp(Socket, Binary) ->
   rudp_socket:sender(Socket, fun(Pid) ->
-    rudp_sender:async_send_binary(Pid, ?PRIORITY_MIDDLE, upd, Binary)
+    rudp_sender:async_send_binary(Pid, ?PRIORITY_MIDDLE, udp, Binary)
   end).
 
 

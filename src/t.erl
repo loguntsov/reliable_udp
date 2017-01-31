@@ -13,7 +13,7 @@ s() ->
 %% Create connection
 c(Listener) ->
   random:seed(erlang:now()),
-  connect(Listener, "54.154.235.68", 1234). %% s2
+  connect(Listener, "127.0.0.1", 1234). %% s2
 
 %% Test case 1: Create one server and one connection
 t() ->
