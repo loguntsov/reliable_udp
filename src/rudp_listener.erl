@@ -56,10 +56,11 @@ get_listener(Pid) ->
 init([ WorkersCount, Port, Opts ]) ->
   { ok, Socket } = gen_udp:open(Port, [{ active, once }, binary, {buffer, 5640 * 1024 } ] ++ Opts),
   { ok, AcceptorPid } = rudp_listener_acceptor:start_link(),
+  { ok, {_, Port1} } = inet:sockname(Socket),
   Listener = #listener{
     pid = self(),
     socket = Socket,
-    port = Port,
+    port = Port1,
     acceptor = AcceptorPid
   },
 
