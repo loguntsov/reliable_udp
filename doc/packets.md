@@ -17,9 +17,12 @@ All interaction should be started from this packet. It sends initial data for op
 <<1, Port:2-bytes, ConnId:4-bytes, ProtocolVersion:8-bytes>>
 
 Where:
-  Port -- the port when opponent should send packets.
-  ConnId -- 4 bytes to identify connection for sender side. Receiver should include this ConnId for each packet to identify connection for sender.
-  ProtocolVersion -- protocol version. In current implementation it should be always 1.
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Port -- the port when opponent should send packets.
+  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ConnId -- 4 bytes to identify connection for sender side. Receiver should include this ConnId for each packet to identify connection for sender.
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ProtocolVersion -- protocol version. In current implementation it should be always 1.
 
 ```
 -define(CONNECT, 1).
@@ -36,6 +39,7 @@ This is second packet in interaction from receiver to started of connection. It 
 Where:
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ConnId -- identifier of connection for starter side.
+
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ReceiverConnId -- identifier of connection on receiver side. It uses to address connection on receiver side by starter.
 
 ```
@@ -51,6 +55,7 @@ If some side wants close connection, it should send this packet to opponent.
 <<3, ConnId:4-bytes>>
 
 Where:
+
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ConnId -- connection id for opponent.
 
 ```
@@ -62,6 +67,7 @@ close(ConnId) ->
 ### Ping packet
 
 Ping packet uses when connection is idle and system should be sure that connection is still alive.
+
 This request sends every _ping_interval_ (see options) miliseconds.
 
 << 9, ConnId:4-bytes>>
@@ -91,6 +97,7 @@ Data packet with payload.
 <<5, ConnId:4-bytes, PacketNumber:4-bytes, BatchNumber:1-bytes, Flags:1-bytes, Payload:N-bytes>>
 
 Where:
+
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;PacketNumber -- packet number is connection sequence.
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;BatchNumber -- number of batch.
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Flags -- some bit flags.
@@ -110,7 +117,9 @@ data(ConnId, PacketNumber, BatchNumber, Flags, Data) ->
 
 Acknowledge for data payload.
 
+
 When receiver received data it always must send data ack packet to sender.
+
 Sender deletes packet with PacketNumber from memory, and never repeats it again.
 
 ```
@@ -143,8 +152,10 @@ data_repeat(ConnId, PacketsNumbers) ->
 Direct UDP is very fast and non reliable way to send little payload (less than MTU, 1500 bytes).
 
 Each time when you sends data, it added to output queue to use packet's sequence.
+
 But when you need fast way to send UDP packet, sender can send it directly uses this type of packet.
-Receiver will receive this packet, and never confirm receprion.
+
+Receiver will receive this packet, and never confirm reception.
 
 
 <<8, ConnID:4-bytes, Payload:N-bytes>>.
@@ -159,14 +170,3 @@ data_udp(ConnId, Data) ->
       error(big_packet, [ Data ])
   end.
 ````  
-
-
-
-
-
--define(CLOSE_ACK, 4).
-
-
-
-
-
