@@ -1,4 +1,4 @@
-# Reliable UDP protocol.
+# Reliable UDP protocol (ALPHA).
 
 It is support:
 
