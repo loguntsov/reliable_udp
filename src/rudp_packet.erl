@@ -12,40 +12,47 @@
 ]).
 
 -export([
-  connect/3,
   connect_ack/2,
   close/1,
   ping/2, ping_ack/2,
   data/5, data_ack/2, data_repeat/2, data_udp/2
 ]).
 
-parse(<<?CONNECT:8/unsigned-integer, Port:16/unsigned-integer, ConnectionId:4/binary, ProtocolVersion:64/unsigned-integer>>) ->
+parse(<<?CONNECT:8/unsigned-integer, Port:16/unsigned-integer, ConnectionId:4/binary, ProtocolVersion:64/unsigned-integer, RcvBuffer:64/unsigned-integer>>) ->
   #connect_packet{
     port = Port,
     protocol_version = ProtocolVersion,
-    connection_id = ConnectionId
+    connection_id = ConnectionId,
+    rcv_buffer_size = RcvBuffer
   };
 
-parse(<<?CONNECT_ACK:8/unsigned-integer, _:4/binary, MyConnId:4/binary>>) ->
+parse(<<?CONNECT_ACK:8/unsigned-integer, ConnId:4/binary, MyConnId:4/binary, RcvBuffer:64/unsigned-integer>>) ->
   #connect_ack_packet{
-    conn = MyConnId
+    connection_id = ConnId,
+    conn = MyConnId,
+    rcv_buffer_size = RcvBuffer
   };
 
-parse(<<?CLOSE:8/unsigned-integer, _:4/binary>>) ->
-  #close_packet{};
+parse(<<?CLOSE:8/unsigned-integer, ConnId:4/binary>>) ->
+  #close_packet{
+    connection_id = ConnId
+  };
 
-parse(<<?PING:8/unsigned-integer, _:4/binary, Count:8/unsigned-integer>>) ->
+parse(<<?PING:8/unsigned-integer, ConnId:4/binary, Count:8/unsigned-integer>>) ->
   #ping_packet{
+    connection_id = ConnId,
     count = Count
   };
 
-parse(<<?PING_ACK:8/unsigned-integer, _:4/binary, Count:8/unsigned-integer>>) ->
+parse(<<?PING_ACK:8/unsigned-integer, ConnId:4/binary, Count:8/unsigned-integer>>) ->
   #ping_ack_packet{
+    connection_id = ConnId,
     count = Count
   };
 
-parse(<<?DATA:8/unsigned-integer, _:4/binary, PacketNumber:32/unsigned-integer, BatchNumber:8/unsigned-integer, 0:6, Start:1, Finish:1, Data/binary>>) ->
+parse(<<?DATA:8/unsigned-integer, ConnId:4/binary, PacketNumber:32/unsigned-integer, BatchNumber:8/unsigned-integer, 0:6, Start:1, Finish:1, Data/binary>>) ->
  #data_packet{
+  connection_id = ConnId,
   packet_number = PacketNumber,
   batch_number = BatchNumber,
   data = binary:copy(Data),
@@ -55,18 +62,22 @@ parse(<<?DATA:8/unsigned-integer, _:4/binary, PacketNumber:32/unsigned-integer, 
   }
  };
 
-parse(<<?DATA_ACK:8/unsigned-integer, _:4/binary, PacketNumber:32/unsigned-integer>>) ->
+parse(<<?DATA_ACK:8/unsigned-integer, ConnId:4/binary, PacketNumber:32/unsigned-integer>>) ->
   #data_ack_packet{
+    connection_id = ConnId,
     packet_number = PacketNumber
+
   };
 
-parse(<<?DATA_REPEAT:8/unsigned-integer, _:4/binary, PacketNumbers/binary>>) ->
+parse(<<?DATA_REPEAT:8/unsigned-integer, ConnId:4/binary, PacketNumbers/binary>>) ->
   #data_repeat_packet{
+    connection_id = ConnId,
     packet_numbers = parse_packet_numbers(PacketNumbers, [])
   };
 
-parse(<<?DATA_UDP:8/unsigned-integer, _:4/binary, Data/binary>>) ->
+parse(<<?DATA_UDP:8/unsigned-integer, ConnId:4/binary, Data/binary>>) ->
   #data_udp_packet{
+    connection_id = ConnId,
     data = binary:copy(Data)
   };
 
@@ -81,44 +92,128 @@ connection_id(Packet) ->
     <<Type:8/unsigned-integer, _/binary >> -> { undefined, Type }
   end.
 
-%% BINARY PACKETS GENERATORS
+build(#connect_packet{
+  port = Port,
+  protocol_version = ProtocolVersion,
+  connection_id = ConnectionId,
+  rcv_buffer_size = RcvBuffer
+}) ->
+  <<?CONNECT:8/integer, Port:16/unsigned-integer, ConnectionId:4/binary, ProtocolVersion:64/unsigned-integer, RcvBuffer:64/unsigned-integer>>;
 
-connect(ConnId, Port, ProtocolVersion) ->
-  <<?CONNECT:8/integer, Port:16/unsigned-integer, ConnId:4/binary, ProtocolVersion:64/unsigned-integer>>.
+build(#connect_ack_packet{
+    connection_id = ConnId,
+    conn = MyConnId,
+    rcv_buffer_size = RcvBuffer
+}) ->
+  <<(header(?CONNECT_ACK, ConnId))/binary, MyConnId:4/binary, RcvBuffer:64/unsigned-integer>>;
 
-connect_ack(ConnId, ReceivedConnectionId) ->
-  <<(header(?CONNECT_ACK, ConnId))/binary, ReceivedConnectionId:4/binary>>.
+build(#close_packet{
+  connection_id = ConnId
+}) ->
+  <<(header(?CLOSE, ConnId))/binary>>;
 
-close(ConnId) ->
-  <<(header(?CLOSE, ConnId))/binary>>.
+build(#ping_packet{
+  connection_id = ConnId,
+  count = Count
+}) ->
+  <<(header(?PING, ConnId))/binary, Count:8/unsigned-integer>>;
 
-ping(ConnId, Count) ->
-  <<(header(?PING, ConnId))/binary, Count:8/unsigned-integer>>.
+build(#ping_ack_packet{
+  connection_id = ConnId,
+  count = Count
+}) ->
+  <<(header(?PING_ACK, ConnId))/binary, Count:8/unsigned-integer>>;
 
-ping_ack(ConnId, Count) ->
-  <<(header(?PING_ACK, ConnId))/binary, Count:8/unsigned-integer>>.
-
-data(ConnId, PacketNumber, BatchNumber, Flags, Data) ->
+build(#data_packet{
+  connection_id = ConnId,
+  packet_number = PacketNumber,
+  batch_number = BatchNumber,
+  data = Data,
+  flags = Flags
+}) ->
   Start = to_bit(maps:get(start, Flags, false)),
   Finish = to_bit(maps:get(finish, Flags, false)),
-  <<(header(?DATA, ConnId))/binary, PacketNumber:32/unsigned-integer, BatchNumber:8/unsigned-integer, 0:6, Start:1, Finish:1, Data/binary>>.
+  <<(header(?DATA, ConnId))/binary, PacketNumber:32/unsigned-integer, BatchNumber:8/unsigned-integer, 0:6, Start:1, Finish:1, Data/binary>>;
 
-data_ack(ConnId, PacketNumber) ->
-  <<(header(?DATA_ACK, ConnId))/binary, PacketNumber:32/unsigned-integer>>.
+build(#data_ack_packet{
+    connection_id = ConnId,
+    packet_number = PacketNumber
+}) ->
+  <<(header(?DATA_ACK, ConnId))/binary, PacketNumber:32/unsigned-integer>>;
 
-data_repeat(ConnId, PacketsNumbers) ->
+build(#data_repeat_packet{
+  connection_id = ConnId,
+  packet_numbers = PacketsNumbers
+}) ->
   Bodies = data_repeat_loop(PacketsNumbers, []),
   lists:map(fun(Body) ->
     <<(header(?DATA_REPEAT, ConnId))/binary, Body/binary>>
-  end, Bodies).
+  end, Bodies);
 
-data_udp(ConnId, Data) ->
+build(#data_udp_packet{
+    connection_id = ConnId,
+    data = Data
+}) ->
   case size(Data) < rudp_udp:max_body_size() of
     true ->
       <<(header(?DATA_UDP, ConnId))/binary, Data/binary>>;
     false ->
       error(big_packet, [ Data ])
-  end.
+  end;
+
+build(Any) -> error(badarg, [ Any ]).
+
+%% BINARY PACKETS GENERATORS
+
+connect_ack(ConnId, ReceivedConnectionId) ->
+  build(#connect_ack_packet{
+    connection_id = ConnId,
+    conn = ReceivedConnectionId
+  }).
+
+close(ConnId) ->
+  build(#close_packet{
+    connection_id = ConnId
+  }).
+
+ping(ConnId, Count) ->
+  build(#ping_packet{
+    connection_id = ConnId,
+    count = Count
+  }).
+
+ping_ack(ConnId, Count) ->
+  build(#ping_ack_packet{
+    connection_id = ConnId,
+    count = Count
+  }).
+
+data(ConnId, PacketNumber, BatchNumber, Flags, Data) ->
+  build(#data_packet{
+    connection_id = ConnId,
+    packet_number = PacketNumber,
+    batch_number = BatchNumber,
+    data = Data,
+    flags = Flags
+  }).
+
+data_ack(ConnId, PacketNumber) ->
+  build(#data_ack_packet{
+      connection_id = ConnId,
+      packet_number = PacketNumber
+  }).
+
+data_repeat(ConnId, PacketsNumbers) ->
+  build(#data_repeat_packet{
+    connection_id = ConnId,
+    packet_numbers = PacketsNumbers
+  }).
+
+data_udp(ConnId, Data) ->
+  build(#data_udp_packet{
+    connection_id = ConnId,
+    data = Data
+  }).
 
 %% Internal
 

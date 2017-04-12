@@ -9,7 +9,7 @@
 
 %% API
 -export([
-  start_link/5, close/1,
+  start_link/6, close/1,
   set_receiver/2,
   async_send_binary/4, sync_send_binary/5,
   send_packet/3,
@@ -64,7 +64,9 @@
   current_batch :: rudp_batch:batch(),
   owner :: pid(),
   check_sended_timer :: reference(),
-  bytes = 0 :: pos_integer()
+  bytes = 0 :: pos_integer(),
+  rcv_buffer :: pos_integer(),
+  rcv_buffer_count = 0 :: pos_integer()
 }).
 
 
@@ -72,8 +74,8 @@
 %%% API
 %%%===================================================================
 
-start_link(Owner, Address, Port, Socket, ConnId) ->
-  { ok, Pid } = gen_server:start_link(?MODULE, [ Owner, self(), Address, Port, Socket, ConnId ], []),
+start_link(Owner, Address, Port, Socket, ConnId, RcvBuffer) ->
+  { ok, Pid } = gen_server:start_link(?MODULE, [ Owner, self(), Address, Port, Socket, ConnId, RcvBuffer ], []),
   { ok, Pid }.
 
 set_receiver(Pid, ReceiverPid) ->
@@ -110,8 +112,8 @@ get_statistic(Pid) ->
 %%% gen_server callbacks
 %%%===================================================================
 
-init([ Owner, Protocol, Address, Port, _Socket, ConnId ]) ->
-  random:seed(os:timestamp()),
+init([ Owner, Protocol, Address, Port, _Socket, ConnId, RcvBuffer ]) ->
+  rand:seed(exsplus, os:timestamp()),
   { ok, Socket } = gen_udp:open(0),
   State = #state{
     protocol = Protocol,
@@ -121,7 +123,8 @@ init([ Owner, Protocol, Address, Port, _Socket, ConnId ]) ->
     socket = Socket,
     bandwith = rudp_shaper:new(rudp_app:env(bandwith_max)),
     packets = rudp_qos:new(?LEVELS_OF_QOS),
-    owner = Owner
+    owner = Owner,
+    rcv_buffer = RcvBuffer
   },
   { ok, start_check_timer(State) }.
 
@@ -138,7 +141,9 @@ handle_call(get_statistic, _From, State) ->
     batch_count => rudp_qos:length(State#state.batch_queue),
     bandwith => rudp_shaper:get_max_rate(State#state.bandwith),
     attempts => Attempts,
-    sended_count => State#state.sended_count
+    sended_count => State#state.sended_count,
+    rcv_buffer => State#state.rcv_buffer,
+    rcv_buffer_count => State#state.rcv_buffer_count
   },
   { reply, { ok, Stat }, State };
 
@@ -202,7 +207,7 @@ handle_info(tick, State) ->
 handle_info(check_sended_packets, State) ->
   NewState = State#state{ check_sended_timer = undefined },
   Now = rudp_time:now_ms(),
-  Packets = lists:filter(fun({K, P}) ->
+  Packets = lists:filter(fun({_K, P}) ->
     P#sended_packet.expire_confirmation < Now
   end,gb_trees:to_list(NewState#state.sended)),
   NewState1 = lists:foldl(fun({K, #sended_packet{} = P}, St) ->
@@ -320,7 +325,7 @@ do_send_0(State) ->
       }};
     { undefined, NewPackets } ->
       NewState1 = State#state{ packets = NewPackets },
-      case NewState1#state.sended_count < rudp_app:env(send_buffer_size) of
+      case (NewState1#state.sended_count < rudp_app:env(send_buffer_size)) andalso (NewState1#state.rcv_buffer_count < NewState1#state.rcv_buffer) of
         true ->
           get_packet_from_batch(NewState1);
         false ->
@@ -394,7 +399,8 @@ add_sended(SendedPacket, State) ->
     false ->
       State#state{
         sended = gb_trees:insert(PacketNumber, SendedPacket, State#state.sended),
-        sended_count = State#state.sended_count + 1
+        sended_count = State#state.sended_count + 1,
+        rcv_buffer_count = State#state.rcv_buffer_count + size(SendedPacket#sended_packet.binary)
       };
     true ->
       State#state{
@@ -405,12 +411,13 @@ add_sended(SendedPacket, State) ->
 delete_sended(PacketNumber, Now, State) ->
   case get_sended(PacketNumber, State) of
     undefined -> State;
-    { ok, #sended_packet{ started = Started, expire_confirmation = ExpireConfirmation } } ->
+    { ok, #sended_packet{ started = Started, expire_confirmation = ExpireConfirmation, binary = Binary } } ->
       Delay = Now - Started,
       NewState = State#state{
         delay = rudp_average:add(Delay, State#state.delay),
         sended = gb_trees:delete_any(PacketNumber, State#state.sended),
-        sended_count = State#state.sended_count - 1
+        sended_count = State#state.sended_count - 1,
+        rcv_buffer_count = State#state.rcv_buffer_count - size(Binary)
       },
       case ExpireConfirmation of
         undefined ->
@@ -461,7 +468,7 @@ packet_to_binary(Packet = #packet{}, State) ->
 
 start_check_timer(State = #state{ check_sended_timer = undefined}) ->
   Time = rudp_app:env(delivery_timeout),
-  RandomTime = random:uniform(Time div 10),
+  RandomTime = rand:uniform(Time div 10),
   T = erlang:send_after(Time + RandomTime , self(), check_sended_packets),
   State#state{
     check_sended_timer = T

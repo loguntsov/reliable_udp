@@ -12,7 +12,7 @@ s() ->
 
 %% Create connection
 c(Listener) ->
-  random:seed(erlang:now()),
+  rand:seed(exsplus, os:timestamp()),
   connect(Listener, "127.0.0.1", 1234). %% s2
 
 %% Test case 1: Create one server and one connection
@@ -30,7 +30,7 @@ p() ->
   spawn_link(fun() ->
   { ok, Listener }= gen_rudp:start_listener(1234),
   Data = iolist_to_binary([ <<"HELLO-", (integer_to_binary(I))/binary, " ">> || I <- lists:seq(1,10000)]),
-  lists:foreach(fun(I) ->
+  lists:foreach(fun(_I) ->
     timer:sleep(1),
     spawn_link(fun() ->
       Socket = c(Listener),
@@ -107,7 +107,7 @@ connect(Listener, IP, Port) ->
     { ok, Socket } -> Socket;
     Error ->
       ?ERROR("Error of connection ~p", [ Error ]),
-      timer:sleep(random:uniform(1000) + 500),
+      timer:sleep(rand:uniform(1000) + 500),
       connect(Listener, IP, Port)
   end.
 

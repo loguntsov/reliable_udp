@@ -32,6 +32,7 @@
 -define(PACKETS_COUNT, 65535).
 -define(PROTOCOL_VERSION, 1).
 -define(TIMEOUT_DECREASE_STEP, 10).
+-define(RCV_BUFFER_SIZE, 8196).
 
 -record(state_closed, {}).
 -record(state_waiting_confirmation_connection_sent, { from, address, port }).
@@ -126,7 +127,12 @@ handle_call({connect, Address, Port, _Options, Timeout }, From, State) when ?STA
   NewState = create_receiver(State),
   Socket = socket(State),
   IncommingConnection = NewState#state.incomming_connection,
-  ok = gen_udp:send(Socket, Address, Port, rudp_packet:connect(IncommingConnection, incomming_port(NewState), ?PROTOCOL_VERSION)),
+  ok = gen_udp:send(Socket, Address, Port, rudp_packet:build(#connect_packet{
+    connection_id = IncommingConnection,
+    port = Port,
+    protocol_version = ?PROTOCOL_VERSION,
+    rcv_buffer_size = ?RCV_BUFFER_SIZE
+  })),
   NewState0 = NewState#state{
     state = #state_waiting_confirmation_connection_sent{
       from = From,
@@ -160,7 +166,11 @@ handle_call({ controlling_process, Owner, _ }, From, State) ->
 handle_call({ accept, IP, ConnectPacket }, _From, State) when ?STATE_ATOM(State) =:= state_closed ->
   NewState0 = create_receiver(State),
   NewState1 = create_sender(ConnectPacket#connect_packet.connection_id, IP, ConnectPacket#connect_packet.port, NewState0),
-  Packet = rudp_packet:connect_ack(NewState1#state.outgoing_connection, NewState1#state.incomming_connection),
+  Packet = rudp_packet:build(#connect_ack_packet{
+    connection_id = NewState1#state.outgoing_connection,
+    conn = NewState1#state.incomming_connection,
+    rcv_buffer_size = ?RCV_BUFFER_SIZE
+  }),
   do_send(NewState1, ?LEVELS_OF_QOS, Packet),
   NewState2 = set_state(#state_connected{}, NewState1),
   send_owner({ rudp_connected, do_get_socket(NewState2), IP, ConnectPacket#connect_packet.port}, NewState2),
@@ -246,7 +256,7 @@ handle_timeout(ping, State = #state{ state = #state_connected{}}) ->
 handle_timeout(_, State) ->
   { noreply, State }.
 
-handle_packet(#connect_ack_packet{ conn = ReceivedConnectionId}, state_waiting_confirmation_connection_sent, State) ->
+handle_packet(#connect_ack_packet{ conn = ReceivedConnectionId }, state_waiting_confirmation_connection_sent, State) ->
   #state_waiting_confirmation_connection_sent{
     address = Address,
     port = Port,

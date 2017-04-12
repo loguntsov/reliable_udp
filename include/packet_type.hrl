@@ -14,24 +14,32 @@
 -record(connect_packet, {
   port :: pos_integer(),
   connection_id :: rudp_connection:connection_id(),
-  protocol_version :: pos_integer()
+  protocol_version :: pos_integer(),
+  rcv_buffer_size :: pos_integer()
 }).
 
 -record(connect_ack_packet, {
-  conn :: rudp_connection:connection_id()
+  connection_id :: rudp_connection:connection_id(),
+  conn :: rudp_connection:connection_id(),
+  rcv_buffer_size :: pos_integer()
 }).
 
--record(close_packet, {}).
+-record(close_packet, {
+  connection_id :: rudp_connection:connection_id()
+}).
 
 -record(ping_packet, {
+  connection_id :: rudp_connection:connection_id(),
   count :: pos_integer()
 }).
 
 -record(ping_ack_packet, {
+  connection_id :: rudp_connection:connection_id(),
   count :: pos_integer()
 }).
 
 -record(data_packet, {
+  connection_id :: rudp_connection:connection_id(),
   packet_number :: pos_integer(),
   batch_number :: pos_integer(),
   flags :: maps:map(),
@@ -39,14 +47,17 @@
 }).
 
 -record(data_ack_packet, {
+  connection_id :: rudp_connection:connection_id(),
   packet_number :: pos_integer()
 }).
 
 -record(data_repeat_packet, {
+  connection_id :: rudp_connection:connection_id(),
   packet_numbers :: [pos_integer()]
 }).
 
 -record(data_udp_packet, {
+  connection_id :: rudp_connection:connection_id(),
   data :: binary()
 }).
 
