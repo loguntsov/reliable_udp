@@ -7,7 +7,7 @@
 
 %% API
 -export([
-  parse/1,
+  parse/1, build/1, is_packet/1,
   connection_id/1
 ]).
 
@@ -172,6 +172,18 @@ build(#data_udp_packet{
   end;
 
 build(Any) -> error(badarg, [ Any ]).
+
+is_packet(#connect_packet{}) -> true;
+is_packet(#connect_ack_packet{}) -> true;
+is_packet(#close_packet{}) -> true;
+is_packet(#ping_packet{}) -> true;
+is_packet(#ping_ack_packet{}) -> true;
+is_packet(#data_packet{}) -> true;
+is_packet(#data_ack_packet{}) -> true;
+is_packet(#data_repeat_packet{}) -> true;
+is_packet(#data_udp_packet{}) -> true;
+is_packet(_) -> false.
+
 
 %% BINARY PACKETS GENERATORS
 
