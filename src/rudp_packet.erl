@@ -18,6 +18,15 @@
   data/5, data_ack/2, data_repeat/2, data_udp/2
 ]).
 
+-type parsed_packet() ::
+  #connect_packet{} | #connect_ack_packet{} | #close_packet{} | #ping_packet{} |
+  #ping_ack_packet{} | #data_packet{} | #data_ack_packet{} | #data_repeat_packet{} |
+  #data_udp_packet{}.
+
+-export_type([ parsed_packet/0 ]).
+
+
+-spec parse(binary()) -> parsed_packet() | false.
 parse(<<?CONNECT:8/unsigned-integer, Port:16/unsigned-integer, ConnectionId:4/binary, ProtocolVersion:64/unsigned-integer, RcvBuffer:64/unsigned-integer>>) ->
   #connect_packet{
     port = Port,
@@ -92,6 +101,7 @@ connection_id(Packet) ->
     <<Type:8/unsigned-integer, _/binary >> -> { undefined, Type }
   end.
 
+-spec build(parsed_packet()) -> binary() | [binary()].
 build(#connect_packet{
   port = Port,
   protocol_version = ProtocolVersion,
