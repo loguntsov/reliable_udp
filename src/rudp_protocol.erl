@@ -129,7 +129,7 @@ handle_call({connect, Address, Port, _Options, Timeout }, From, State) when ?STA
   IncommingConnection = NewState#state.incomming_connection,
   ok = gen_udp:send(Socket, Address, Port, rudp_packet:build(#connect_packet{
     connection_id = IncommingConnection,
-    port = Port,
+    port = incomming_port(NewState),
     protocol_version = ?PROTOCOL_VERSION,
     rcv_buffer_size = ?RCV_BUFFER_SIZE
   })),
