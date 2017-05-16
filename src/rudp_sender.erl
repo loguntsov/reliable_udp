@@ -9,7 +9,7 @@
 
 %% API
 -export([
-  start_link/6, close/1,
+  start_link/5, start_link/6, close/1,
   set_receiver/2,
   async_send_binary/4, sync_send_binary/5,
   send_packet/3,
@@ -28,6 +28,7 @@
   code_change/3]).
 
 -define(SERVER, ?MODULE).
+-define(RCV_BUFFER_SIZE, 8196).
 
 -type packet_type() :: binary | data | sended.
 
@@ -73,6 +74,9 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+start_link(Owner, Address, Port, Socket, ConnId) ->
+  start_link(Owner, Address, Port, Socket, ConnId, ?RCV_BUFFER_SIZE).
 
 start_link(Owner, Address, Port, Socket, ConnId, RcvBuffer) ->
   { ok, Pid } = gen_server:start_link(?MODULE, [ Owner, self(), Address, Port, Socket, ConnId, RcvBuffer ], []),
