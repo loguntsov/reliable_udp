@@ -39,7 +39,7 @@ p.s. Commented option is disabled, but can be enabled in the future.
   ]}
 ```  
 
-## Using:
+## Usage:
 
 All basic functions described in gen_rudp module:
 ```
