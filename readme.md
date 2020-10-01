@@ -1,5 +1,7 @@
 # Reliable UDP protocol (ALPHA).
 
+Note: This is not implementation of https://en.wikipedia.org/wiki/Reliable_User_Datagram_Protocol
+
 It is support:
 
  * Constant bandwith limitation per connection.
